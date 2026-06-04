@@ -9,9 +9,19 @@ This application is a modern, framework-less web implementation of the Lotto 6/4
 - **Design System:** Utilizes modern CSS features including CSS Variables, Grid/Flexbox, and `:has()` selector for a responsive and visually rich UI.
 
 ## Components
-- **`lotto-header`**: Manages the top navigation, branding, and real-time point display.
-- **`lotto-selector`**: The primary interface for number selection. Includes a 1-45 grid, manual selection logic, and automated generation features (Single Auto / 5-Game Auto).
-- **`lotto-cart`**: Displays the current selection of games, allows for individual removal, and handles the final purchase transaction logic.
+- **`lotto-header`**: Manages the top navigation, branding, and real-time point display. Updates based on auth state.
+- **`lotto-auth`**: A modal component for user registration and login.
+- **`lotto-selector`**: The primary interface for number selection. Includes a 5x9 grid and intelligent auto-fill.
+- **`lotto-cart`**: Displays the current selection of games in 5 fixed slots (A-E).
+
+## Features & Business Logic
+- **Authentication:** LocalStorage-based signup/login (ID, PW, optional Email).
+- **Point Rewards:**
+  - **Signup Bonus:** 100,000 pts.
+  - **Daily Login Bonus:** 200,000 pts (once per day).
+  - **Inactivity Penalty:** No bonus if the last login was more than 7 days ago.
+- **Game Cost:** 1,000 pts per game.
+- **Selection:** Manual selection with 5x9 grid + partial auto-fill support.
 
 ## Design & UI/UX
 - **Aesthetics:** Card-based layout with soft shadows and interactive hover effects.

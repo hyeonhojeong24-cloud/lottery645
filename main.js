@@ -1,20 +1,110 @@
 /**
- * AppManager - Central state management
+ * AppManager - Central state management with Auth & Persistence
  */
 class AppManager extends EventTarget {
   constructor() {
     super();
-    this.points = 100000; // Restored to 100,000 points
-    this.slots = Array(5).fill(null); // Fixed 5 slots (A-E)
+    this.users = JSON.parse(localStorage.getItem('lotto_users')) || {};
+    this.currentUser = JSON.parse(localStorage.getItem('lotto_session')) || null;
+    
+    this.slots = Array(5).fill(null);
     this.COST_PER_GAME = 1000;
+    
+    if (this.currentUser && this.users[this.currentUser]) {
+      const user = this.users[this.currentUser];
+      this.checkLoginBonus(user);
+      this.points = user.points;
+      this.saveData();
+    } else {
+      this.points = 0;
+    }
+  }
+
+  saveData() {
+    localStorage.setItem('lotto_users', JSON.stringify(this.users));
+    if (this.currentUser) {
+      localStorage.setItem('lotto_session', JSON.stringify(this.currentUser));
+    } else {
+      localStorage.removeItem('lotto_session');
+    }
+  }
+
+  signup(id, pw, email = '') {
+    if (this.users[id]) {
+      alert('이미 존재하는 아이디입니다.');
+      return false;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    this.users[id] = {
+      id,
+      pw,
+      email,
+      points: 100000, // Signup bonus
+      lastLogin: today
+    };
+    this.saveData();
+    alert('회원가입이 완료되었습니다! 100,000 포인트가 지급되었습니다.');
+    return this.login(id, pw);
+  }
+
+  login(id, pw) {
+    const user = this.users[id];
+    if (!user || user.pw !== pw) {
+      alert('아이디 또는 비밀번호가 틀립니다.');
+      return false;
+    }
+
+    this.currentUser = id;
+    this.checkLoginBonus(user);
+    this.points = user.points;
+    this.saveData();
+    
+    this.dispatchEvent(new CustomEvent('auth-changed', { detail: id }));
+    this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
+    return true;
+  }
+
+  logout() {
+    this.currentUser = null;
+    this.points = 0;
+    this.saveData();
+    this.dispatchEvent(new CustomEvent('auth-changed', { detail: null }));
+    this.dispatchEvent(new CustomEvent('points-updated', { detail: 0 }));
+  }
+
+  checkLoginBonus(user) {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const lastLogin = new Date(user.lastLogin);
+    const lastLoginStr = user.lastLogin;
+
+    if (todayStr !== lastLoginStr) {
+      const diffTime = Math.abs(today - lastLogin);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 7) {
+        alert('7일 이상 미접속으로 일일 보너스가 지급되지 않았습니다.');
+      } else {
+        user.points += 200000;
+        alert('환영합니다! 일일 접속 보너스 200,000 포인트가 지급되었습니다.');
+      }
+      user.lastLogin = todayStr;
+    }
   }
 
   updatePoints(amount) {
+    if (!this.currentUser) return;
     this.points += amount;
+    this.users[this.currentUser].points = this.points;
+    this.saveData();
     this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
   }
 
   confirmSelection(numbers, isAuto = false) {
+    if (!this.currentUser) {
+      alert('로그인이 필요한 서비스입니다.');
+      return false;
+    }
     const nextSlotIndex = this.slots.findIndex(slot => slot === null);
     if (nextSlotIndex === -1) {
       alert('모든 슬롯이 가득 찼습니다.');
@@ -23,7 +113,7 @@ class AppManager extends EventTarget {
     
     this.slots[nextSlotIndex] = {
       numbers: [...numbers].sort((a, b) => a - b),
-      isAuto: isAuto && numbers.length === 6 // Only true if 0 were selected initially
+      isAuto: isAuto && numbers.length === 6
     };
     
     this.dispatchEvent(new CustomEvent('slots-updated', { detail: this.slots }));
@@ -77,22 +167,124 @@ function getBallClass(num) {
 class LottoHeader extends HTMLElement {
   connectedCallback() {
     this.render();
+    app.addEventListener('auth-changed', () => this.render());
+    app.addEventListener('points-updated', (e) => this.updatePoints(e.detail));
   }
+
+  updatePoints(points) {
+    const el = this.querySelector('#header-points');
+    if (el) el.textContent = points.toLocaleString() + '원';
+  }
+
   render() {
+    const user = app.currentUser;
     this.innerHTML = `
       <header style="background: white; border-bottom: 1px solid #ddd; padding: 15px 0; margin-bottom: 20px; box-shadow: var(--shadow-sm);">
         <div style="max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 1rem;">
           <h1 style="font-size: 1.5rem; color: var(--lotto-magenta); font-weight: 800; letter-spacing: -0.5px;">LOTTO 6/45</h1>
-          <div style="display: flex; gap: 12px;">
-            <button class="btn btn-outline" style="border-color: #eee; background: #fafafa;">로그인</button>
-            <button class="btn btn-outline" style="border-color: #eee; background: #fafafa;">회원가입</button>
+          <div style="display: flex; gap: 12px; align-items: center;">
+            ${user ? `
+              <span style="font-size: 0.9rem; font-weight: bold; color: #333;">${user}님</span>
+              <span id="header-points" style="font-size: 0.9rem; color: var(--lotto-orange); font-weight: bold;">${app.points.toLocaleString()}원</span>
+              <button id="logout-btn" class="btn btn-outline" style="border-color: #eee;">로그아웃</button>
+            ` : `
+              <button id="show-login" class="btn btn-outline" style="border-color: #eee; background: #fafafa;">로그인 / 회원가입</button>
+            `}
           </div>
         </div>
       </header>
     `;
+
+    if (user) {
+      this.querySelector('#logout-btn').onclick = () => app.logout();
+    } else {
+      this.querySelector('#show-login').onclick = () => {
+        document.querySelector('lotto-auth').show();
+      };
+    }
   }
 }
 customElements.define('lotto-header', LottoHeader);
+
+/**
+ * <lotto-auth> Component - Modal for Login/Signup
+ */
+class LottoAuth extends HTMLElement {
+  constructor() {
+    super();
+    this.mode = 'login'; // 'login' or 'signup'
+  }
+
+  connectedCallback() {
+    this.render();
+  }
+
+  show() {
+    this.style.display = 'flex';
+  }
+
+  hide() {
+    this.style.display = 'none';
+  }
+
+  toggleMode() {
+    this.mode = this.mode === 'login' ? 'signup' : 'login';
+    this.render();
+  }
+
+  handleAuth(e) {
+    e.preventDefault();
+    const id = this.querySelector('#auth-id').value;
+    const pw = this.querySelector('#auth-pw').value;
+    
+    if (this.mode === 'login') {
+      if (app.login(id, pw)) this.hide();
+    } else {
+      const email = this.querySelector('#auth-email')?.value || '';
+      if (app.signup(id, pw, email)) this.hide();
+    }
+  }
+
+  render() {
+    this.style.cssText = `
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000;
+    `;
+
+    this.innerHTML = `
+      <div style="background: white; padding: 30px; border-radius: 8px; width: 320px; box-shadow: var(--shadow-lg);">
+        <h2 style="margin-bottom: 20px; text-align: center; color: var(--lotto-magenta);">
+          ${this.mode === 'login' ? '로그인' : '회원가입'}
+        </h2>
+        <form id="auth-form" style="display: flex; flex-direction: column; gap: 12px;">
+          <input type="text" id="auth-id" placeholder="아이디" required style="padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+          <input type="password" id="auth-pw" placeholder="비밀번호" required style="padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+          ${this.mode === 'signup' ? `
+            <input type="email" id="auth-email" placeholder="이메일 (선택)" style="padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+          ` : ''}
+          <button type="submit" class="btn btn-purchase" style="padding: 12px; font-size: 1rem;">
+            ${this.mode === 'login' ? '로그인' : '회원가입'}
+          </button>
+        </form>
+        <div style="margin-top: 15px; text-align: center; font-size: 0.85rem;">
+          <a href="#" id="toggle-auth" style="color: var(--lotto-blue-btn); text-decoration: none;">
+            ${this.mode === 'login' ? '회원가입 하러가기' : '로그인 하러가기'}
+          </a>
+          <br><br>
+          <button id="close-auth" style="background: none; border: none; color: #999; cursor: pointer;">닫기</button>
+        </div>
+      </div>
+    `;
+
+    this.querySelector('#auth-form').onsubmit = (e) => this.handleAuth(e);
+    this.querySelector('#toggle-auth').onclick = (e) => {
+      e.preventDefault();
+      this.toggleMode();
+    };
+    this.querySelector('#close-auth').onclick = () => this.hide();
+  }
+}
+customElements.define('lotto-auth', LottoAuth);
 
 /**
  * <lotto-selector> Component
