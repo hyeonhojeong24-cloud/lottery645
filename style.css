@@ -138,39 +138,64 @@ body {
   background-color: #e0e0e0;
 }
 
-/* Selector Grid */
+/* Selector Grid - Updated to 5x9 */
 .num-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
-  padding: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 15px;
+  background: #fff;
 }
 
 .num-box {
   aspect-ratio: 1;
-  border: 1px solid var(--lotto-pink);
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--lotto-pink);
-  background: white;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #555;
+  transition: all 0.2s ease;
+}
+
+.num-box:hover {
+  border-color: var(--lotto-pink);
+  background: var(--lotto-pink-light);
 }
 
 .num-box.selected {
   background-color: var(--lotto-pink);
   color: white;
+  border-color: var(--lotto-pink);
+  box-shadow: 0 2px 4px rgba(216, 27, 96, 0.3);
 }
 
-/* Cart Slot */
+/* Redesigning buttons for better clickability */
+.btn-confirm {
+  background-color: #454545;
+  color: white;
+  width: 100%;
+  padding: 12px;
+  font-size: 1.1rem;
+  margin-top: 10px;
+  border-radius: var(--radius-md);
+}
+
+.btn-confirm:hover {
+  background-color: #222;
+}
+
 .game-slot {
   display: grid;
   grid-template-columns: 30px 1fr auto;
   align-items: center;
-  padding: 10px 15px;
-  border-bottom: 1px solid #eeeeee;
-  gap: 10px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 12px;
+  min-height: 60px;
 }
 
 .game-slot .prefix {
