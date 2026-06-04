@@ -37,7 +37,76 @@ class AppManager extends EventTarget {
     }
   }
 
-  // ... (signup, login, logout, checkLoginBonus, updatePoints remain the same)
+  signup(id, pw, email = '') {
+    if (this.users[id]) {
+      alert('이미 존재하는 아이디입니다.');
+      return false;
+    }
+    const today = new Date().toISOString().split('T')[0];
+    this.users[id] = {
+      id,
+      pw,
+      email,
+      points: 100000, // Signup bonus
+      lastLogin: today
+    };
+    this.saveData();
+    alert('회원가입이 완료되었습니다! 100,000 포인트가 지급되었습니다.');
+    return this.login(id, pw);
+  }
+
+  login(id, pw) {
+    const user = this.users[id];
+    if (!user || user.pw !== pw) {
+      alert('아이디 또는 비밀번호가 틀립니다.');
+      return false;
+    }
+
+    this.currentUser = id;
+    this.checkLoginBonus(user);
+    this.points = user.points;
+    this.saveData();
+    
+    this.dispatchEvent(new CustomEvent('auth-changed', { detail: id }));
+    this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
+    return true;
+  }
+
+  logout() {
+    this.currentUser = null;
+    this.points = 0;
+    this.saveData();
+    this.dispatchEvent(new CustomEvent('auth-changed', { detail: null }));
+    this.dispatchEvent(new CustomEvent('points-updated', { detail: 0 }));
+  }
+
+  checkLoginBonus(user) {
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    const lastLogin = new Date(user.lastLogin);
+    const lastLoginStr = user.lastLogin;
+
+    if (todayStr !== lastLoginStr) {
+      const diffTime = Math.abs(today - lastLogin);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (diffDays >= 7) {
+        alert('7일 이상 미접속으로 일일 보너스가 지급되지 않았습니다.');
+      } else {
+        user.points += 200000;
+        alert('환영합니다! 일일 접속 보너스 200,000 포인트가 지급되었습니다.');
+      }
+      user.lastLogin = todayStr;
+    }
+  }
+
+  updatePoints(amount) {
+    if (!this.currentUser) return;
+    this.points += amount;
+    this.users[this.currentUser].points = this.points;
+    this.saveData();
+    this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
+  }
 
   confirmSelection(numbers, isAuto = false) {
     if (!this.currentUser) {
