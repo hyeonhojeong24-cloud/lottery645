@@ -188,7 +188,8 @@ class LottoHeader extends HTMLElement {
               <span id="header-points" style="font-size: 0.9rem; color: var(--lotto-orange); font-weight: bold;">${app.points.toLocaleString()}원</span>
               <button id="logout-btn" class="btn btn-outline" style="border-color: #eee;">로그아웃</button>
             ` : `
-              <button id="show-login" class="btn btn-outline" style="border-color: #eee; background: #fafafa;">로그인 / 회원가입</button>
+              <button id="btn-login" class="btn btn-outline" style="border-color: #eee; background: #fafafa;">로그인</button>
+              <button id="btn-signup" class="btn btn-primary" style="padding: 6px 15px; font-size: 0.85rem;">회원가입</button>
             `}
           </div>
         </div>
@@ -198,8 +199,15 @@ class LottoHeader extends HTMLElement {
     if (user) {
       this.querySelector('#logout-btn').onclick = () => app.logout();
     } else {
-      this.querySelector('#show-login').onclick = () => {
-        document.querySelector('lotto-auth').show();
+      this.querySelector('#btn-login').onclick = () => {
+        const auth = document.querySelector('lotto-auth');
+        auth.setMode('login');
+        auth.show();
+      };
+      this.querySelector('#btn-signup').onclick = () => {
+        const auth = document.querySelector('lotto-auth');
+        auth.setMode('signup');
+        auth.show();
       };
     }
   }
@@ -216,6 +224,11 @@ class LottoAuth extends HTMLElement {
   }
 
   connectedCallback() {
+    this.render();
+  }
+
+  setMode(mode) {
+    this.mode = mode;
     this.render();
   }
 
