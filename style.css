@@ -1,24 +1,29 @@
 :root {
-  --primary-color: #2563eb;
-  --primary-hover: #1d4ed8;
-  --secondary-color: #64748b;
-  --background-color: #f8fafc;
+  --lotto-pink: #d81b60;
+  --lotto-pink-light: #fce4ec;
+  --lotto-magenta: #c2185b;
+  --lotto-blue-grey: #546e7a;
+  --lotto-blue-grey-light: #eceff1;
+  --lotto-orange: #f57c00;
+  --lotto-blue-btn: #1976d2;
+  --lotto-grey-text: #757575;
+  
+  --primary-color: var(--lotto-pink);
+  --primary-hover: var(--lotto-magenta);
+  --secondary-color: var(--lotto-blue-grey);
+  --background-color: #f5f5f5;
   --card-bg: #ffffff;
-  --text-main: #1e293b;
-  --text-muted: #64748b;
-  --accent-color: #f59e0b;
-  --danger-color: #ef4444;
-  --success-color: #22c55e;
+  --text-main: #333333;
+  --text-muted: #666666;
   
-  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
   
-  --radius-md: 0.5rem;
-  --radius-lg: 1rem;
+  --radius-md: 4px;
+  --radius-lg: 8px;
   --radius-full: 9999px;
 
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Inter', 'Malgun Gothic', sans-serif;
 }
 
 * {
@@ -33,109 +38,157 @@ body {
   color: var(--text-main);
   line-height: 1.5;
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
 /* Layout */
 .app-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 2rem;
+  max-width: 1000px;
+  margin: 2rem auto;
+  padding: 0 1rem;
   display: grid;
-  grid-template-columns: 1fr 350px;
-  gap: 2rem;
-  width: 100%;
+  grid-template-columns: 320px 1fr;
+  gap: 1.5rem;
+  align-items: start;
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 800px) {
   .app-container {
     grid-template-columns: 1fr;
   }
 }
 
-/* Common Components */
-.card {
-  background: var(--card-bg);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
-  padding: 1.5rem;
+/* Panels */
+.selection-panel {
+  border: 2px solid var(--lotto-pink);
+  border-radius: var(--radius-md);
+  background: white;
+  overflow: hidden;
 }
 
+.confirmation-panel {
+  border: 2px solid var(--lotto-blue-grey);
+  border-radius: var(--radius-md);
+  background: white;
+  min-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
-  font-weight: 600;
+  font-weight: bold;
   cursor: pointer;
   transition: all 0.2s ease;
   border: none;
-  gap: 0.5rem;
+  font-size: 0.875rem;
 }
 
-.btn-primary {
-  background-color: var(--primary-color);
+.btn-pink-text {
+  background: transparent;
+  color: var(--lotto-pink);
+  border: 1px solid var(--lotto-pink);
+}
+
+.btn-pink-text:hover {
+  background: var(--lotto-pink-light);
+}
+
+.btn-confirm {
+  background-color: #757575;
   color: white;
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
 }
 
-.btn-primary:hover {
-  background-color: var(--primary-hover);
-  transform: translateY(-1px);
-}
-
-.btn-outline {
-  background-color: transparent;
-  border: 1px solid var(--secondary-color);
-  color: var(--secondary-color);
-}
-
-.btn-outline:hover {
-  background-color: #f1f5f9;
+.btn-purchase {
+  background-color: var(--lotto-blue-btn);
+  color: white;
+  width: 100%;
+  padding: 1.25rem;
+  font-size: 1.25rem;
+  border-radius: 0;
 }
 
 /* Lotto Numbers Styling */
 .lotto-ball {
-  width: 36px;
-  height: 36px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: bold;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: white;
-  text-shadow: 0 1px 1px rgba(0,0,0,0.2);
 }
 
-.ball-1-10 { background-color: #facc15; color: #854d0e; }
-.ball-11-20 { background-color: #3b82f6; }
-.ball-21-30 { background-color: #ef4444; }
-.ball-31-40 { background-color: #64748b; }
-.ball-41-45 { background-color: #22c55e; }
+.ball-1-10 { background-color: #fbc02d; }
+.ball-11-20 { background-color: #1976d2; }
+.ball-21-30 { background-color: #d32f2f; }
+.ball-31-40 { background-color: #757575; }
+.ball-41-45 { background-color: #388e3c; }
 
-/* Components Header */
-lotto-header {
-  display: block;
-  background: var(--card-bg);
-  box-shadow: var(--shadow-sm);
-  padding: 1rem 2rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
+.ball-empty {
+  background-color: #e0e0e0;
 }
 
-/* Responsive Grid for 1-45 */
-.number-grid {
+/* Selector Grid */
+.num-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
+  gap: 2px;
+  padding: 10px;
 }
 
-@media (max-width: 480px) {
-  .number-grid {
-    grid-template-columns: repeat(5, 1fr);
-  }
+.num-box {
+  aspect-ratio: 1;
+  border: 1px solid var(--lotto-pink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--lotto-pink);
+  background: white;
 }
+
+.num-box.selected {
+  background-color: var(--lotto-pink);
+  color: white;
+}
+
+/* Cart Slot */
+.game-slot {
+  display: grid;
+  grid-template-columns: 30px 1fr auto;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #eeeeee;
+  gap: 10px;
+}
+
+.game-slot .prefix {
+  font-weight: bold;
+  color: #333;
+}
+
+.game-slot .status-text {
+  color: #999;
+  font-size: 0.875rem;
+}
+
+.slot-actions button {
+  background: white;
+  border: 1px solid #ddd;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  margin-left: 2px;
+  cursor: pointer;
+}
+

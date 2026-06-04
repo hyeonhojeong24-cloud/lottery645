@@ -4,9 +4,8 @@
 class AppManager extends EventTarget {
   constructor() {
     super();
-    this.points = 100000; // Starting points
-    this.cart = [];
-    this.MAX_CART_SIZE = 100;
+    this.points = 25000; // Starting points as per prompt
+    this.slots = Array(5).fill(null); // Fixed 5 slots (A-E)
     this.COST_PER_GAME = 1000;
   }
 
@@ -15,57 +14,55 @@ class AppManager extends EventTarget {
     this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
   }
 
-  addToCart(numbers, isAuto = false) {
-    if (this.cart.length >= this.MAX_CART_SIZE) {
-      alert(`최대 ${this.MAX_CART_SIZE}게임까지 구매 가능합니다.`);
+  confirmSelection(numbers, isAuto = false) {
+    const nextSlotIndex = this.slots.findIndex(slot => slot === null);
+    if (nextSlotIndex === -1) {
+      alert('모든 슬롯이 가득 찼습니다.');
       return false;
     }
     
-    this.cart.push({
-      id: Date.now() + Math.random(),
+    this.slots[nextSlotIndex] = {
       numbers: [...numbers].sort((a, b) => a - b),
       isAuto
-    });
+    };
     
-    this.dispatchEvent(new CustomEvent('cart-updated', { detail: this.cart }));
+    this.dispatchEvent(new CustomEvent('slots-updated', { detail: this.slots }));
     return true;
   }
 
-  removeFromCart(id) {
-    this.cart = this.cart.filter(item => item.id !== id);
-    this.dispatchEvent(new CustomEvent('cart-updated', { detail: this.cart }));
+  removeSlot(index) {
+    this.slots[index] = null;
+    this.dispatchEvent(new CustomEvent('slots-updated', { detail: this.slots }));
   }
 
-  clearCart() {
-    this.cart = [];
-    this.dispatchEvent(new CustomEvent('cart-updated', { detail: this.cart }));
+  clearSlots() {
+    this.slots = Array(5).fill(null);
+    this.dispatchEvent(new CustomEvent('slots-updated', { detail: this.slots }));
   }
 
   purchase() {
-    const totalCost = this.cart.length * this.COST_PER_GAME;
-    if (this.points < totalCost) {
-      alert('포인트가 부족합니다.');
+    const count = this.slots.filter(s => s !== null).length;
+    const totalCost = count * this.COST_PER_GAME;
+    
+    if (count === 0) {
+      alert('선택된 번호가 없습니다.');
       return false;
     }
-    
-    if (this.cart.length === 0) {
-      alert('구매할 로또가 없습니다.');
+
+    if (this.points < totalCost) {
+      alert('보유예치금이 부족합니다.');
       return false;
     }
 
     this.updatePoints(-totalCost);
-    const purchasedGames = [...this.cart];
-    this.clearCart();
-    alert(`${purchasedGames.length}게임 구매가 완료되었습니다!`);
+    this.clearSlots();
+    alert('구매가 완료되었습니다!');
     return true;
   }
 }
 
 const app = new AppManager();
 
-/**
- * Helper to get ball class based on number
- */
 function getBallClass(num) {
   if (num <= 10) return 'ball-1-10';
   if (num <= 20) return 'ball-11-20';
@@ -80,30 +77,18 @@ function getBallClass(num) {
 class LottoHeader extends HTMLElement {
   connectedCallback() {
     this.render();
-    app.addEventListener('points-updated', (e) => this.updatePoints(e.detail));
   }
-
-  updatePoints(points) {
-    const el = this.querySelector('#points-display');
-    if (el) el.textContent = points.toLocaleString();
-  }
-
   render() {
     this.innerHTML = `
-      <div style="display: flex; justify-content: space-between; align-items: center; max-width: 1200px; margin: 0 auto;">
-        <h1 style="font-size: 1.5rem; color: var(--primary-color);">Lotto 6/45</h1>
-        <div style="display: flex; align-items: center; gap: 1.5rem;">
-          <div style="background: #f1f5f9; padding: 0.5rem 1rem; border-radius: var(--radius-full); display: flex; align-items: center; gap: 0.5rem;">
-            <span style="font-size: 0.875rem; color: var(--text-muted);">보유 포인트:</span>
-            <span id="points-display" style="font-weight: bold; color: var(--primary-color);">${app.points.toLocaleString()}</span>
-            <span style="font-size: 0.75rem; font-weight: bold;">P</span>
-          </div>
-          <div style="display: flex; gap: 0.5rem;">
-            <button class="btn btn-outline" style="font-size: 0.875rem;">로그인</button>
-            <button class="btn btn-primary" style="font-size: 0.875rem;">회원가입</button>
+      <header style="background: white; border-bottom: 1px solid #ddd; padding: 10px 0; margin-bottom: 10px;">
+        <div style="max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; padding: 0 1rem;">
+          <h1 style="font-size: 1.25rem; color: #333;">로또 6/45 구매</h1>
+          <div style="display: flex; gap: 10px;">
+            <button class="btn btn-outline" style="border: 1px solid #ddd; padding: 4px 12px;">로그인</button>
+            <button class="btn btn-outline" style="border: 1px solid #ddd; padding: 4px 12px;">회원가입</button>
           </div>
         </div>
-      </div>
+      </header>
     `;
   }
 }
@@ -124,48 +109,34 @@ class LottoSelector extends HTMLElement {
   }
 
   setupEventListeners() {
-    this.querySelector('.number-grid').addEventListener('click', (e) => {
-      const btn = e.target.closest('.num-btn');
-      if (!btn) return;
+    this.querySelector('.num-grid').addEventListener('click', (e) => {
+      const box = e.target.closest('.num-box');
+      if (!box) return;
       
-      const num = parseInt(btn.dataset.num);
+      const num = parseInt(box.dataset.num);
       if (this.selectedNumbers.has(num)) {
         this.selectedNumbers.delete(num);
-        btn.classList.remove('selected');
+        box.classList.remove('selected');
       } else {
         if (this.selectedNumbers.size >= 6) {
           alert('최대 6개까지만 선택 가능합니다.');
           return;
         }
         this.selectedNumbers.add(num);
-        btn.classList.add('selected');
-      }
-      this.updateSelectedDisplay();
-    });
-
-    this.querySelector('#auto-select').addEventListener('click', () => {
-      this.autoSelect();
-    });
-
-    this.querySelector('#auto-five').addEventListener('click', () => {
-      for (let i = 0; i < 5; i++) {
-        const nums = this.generateRandomNumbers();
-        app.addToCart(nums, true);
+        box.classList.add('selected');
       }
     });
 
-    this.querySelector('#reset-select').addEventListener('click', () => {
+    this.querySelector('#reset-btn').addEventListener('click', () => this.resetSelection());
+    this.querySelector('#auto-btn').addEventListener('click', () => this.autoSelect());
+    this.querySelector('#confirm-btn').addEventListener('click', () => {
+      const qty = parseInt(this.querySelector('#qty-select').value);
+      for(let i=0; i<qty; i++) {
+        const isAuto = this.selectedNumbers.size === 0;
+        const nums = isAuto ? this.generateRandomNumbers() : Array.from(this.selectedNumbers);
+        if (!app.confirmSelection(nums, isAuto)) break;
+      }
       this.resetSelection();
-    });
-
-    this.querySelector('#add-to-cart').addEventListener('click', () => {
-      if (this.selectedNumbers.size !== 6) {
-        alert('번호 6개를 모두 선택해주세요.');
-        return;
-      }
-      if (app.addToCart(Array.from(this.selectedNumbers), false)) {
-        this.resetSelection();
-      }
     });
   }
 
@@ -174,150 +145,152 @@ class LottoSelector extends HTMLElement {
     const nums = this.generateRandomNumbers();
     nums.forEach(n => {
       this.selectedNumbers.add(n);
-      this.querySelector(`.num-btn[data-num="${n}"]`).classList.add('selected');
+      this.querySelector(`.num-box[data-num="${n}"]`).classList.add('selected');
     });
-    this.updateSelectedDisplay();
   }
 
   generateRandomNumbers() {
     const nums = new Set();
-    while (nums.size < 6) {
-      nums.add(Math.floor(Math.random() * 45) + 1);
-    }
+    while (nums.size < 6) nums.add(Math.floor(Math.random() * 45) + 1);
     return Array.from(nums);
   }
 
   resetSelection() {
     this.selectedNumbers.clear();
-    this.querySelectorAll('.num-btn').forEach(btn => btn.classList.remove('selected'));
-    this.updateSelectedDisplay();
-  }
-
-  updateSelectedDisplay() {
-    const container = this.querySelector('#selected-preview');
-    container.innerHTML = '';
-    Array.from(this.selectedNumbers).sort((a,b) => a-b).forEach(n => {
-      const ball = document.createElement('div');
-      ball.className = `lotto-ball ${getBallClass(n)}`;
-      ball.textContent = n;
-      container.appendChild(ball);
-    });
+    this.querySelectorAll('.num-box').forEach(b => b.classList.remove('selected'));
   }
 
   render() {
     let gridHtml = '';
     for (let i = 1; i <= 45; i++) {
-      gridHtml += `<button class="num-btn btn btn-outline" data-num="${i}" style="width: 100%; aspect-ratio: 1; padding: 0;">${i}</button>`;
+      gridHtml += `<div class="num-box" data-num="${i}">${i}</div>`;
     }
 
     this.innerHTML = `
-      <div class="card">
-        <h2 style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-          번호 선택
-          <span style="font-size: 0.875rem; color: var(--text-muted); font-weight: normal;">${app.COST_PER_GAME.toLocaleString()} P / 게임</span>
-        </h2>
-        
-        <div class="number-grid">
+      <div class="selection-panel">
+        <div style="background: var(--lotto-magenta); color: white; padding: 8px 15px; font-weight: bold; text-align: center;">1,000원</div>
+        <div class="num-grid">
           ${gridHtml}
         </div>
-
-        <div style="background: #f8fafc; padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem; min-height: 60px;">
-          <div id="selected-preview" style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
-            <span style="color: var(--text-muted); font-size: 0.875rem;">번호를 선택하거나 자동 선택을 눌러주세요.</span>
-          </div>
-        </div>
-
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-          <button id="auto-select" class="btn btn-outline">자동 선택</button>
-          <button id="auto-five" class="btn btn-outline" style="border-color: var(--accent-color); color: var(--accent-color);">자동 5게임 추가</button>
-          <button id="reset-select" class="btn btn-outline" style="border-color: var(--danger-color); color: var(--danger-color);">초기화</button>
-          <button id="add-to-cart" class="btn btn-primary">선택 번호 추가</button>
+        <div style="display: flex; justify-content: space-around; padding: 10px; border-top: 1px solid var(--lotto-pink-light);">
+          <button id="reset-btn" class="btn btn-pink-text">[초기화]</button>
+          <button id="auto-btn" class="btn btn-pink-text">[자동선택]</button>
+          <button id="my-num-btn" class="btn btn-pink-text">[나의번호등록]</button>
         </div>
       </div>
       
-      <style>
-        .num-btn.selected {
-          background-color: var(--primary-color) !important;
-          color: white !important;
-          border-color: var(--primary-color) !important;
-        }
-      </style>
+      <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 0.875rem; color: #333;">적용수량</span>
+          <select id="qty-select" style="flex: 1; padding: 5px; border: 1px solid #ddd; border-radius: 4px;">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <button id="confirm-btn" class="btn btn-confirm">확인</button>
+      </div>
     `;
   }
 }
 customElements.define('lotto-selector', LottoSelector);
 
 /**
- * <lotto-cart> Component
+ * <lotto-cart> Component (Confirmation Area)
  */
 class LottoCart extends HTMLElement {
   connectedCallback() {
     this.render();
-    app.addEventListener('cart-updated', (e) => this.updateCart(e.detail));
+    app.addEventListener('slots-updated', (e) => this.updateSlots(e.detail));
+    app.addEventListener('points-updated', (e) => this.updatePoints(e.detail));
   }
 
-  updateCart(cart) {
-    const list = this.querySelector('#cart-items');
-    list.innerHTML = '';
+  updatePoints(points) {
+    this.querySelector('#balance-text').textContent = points.toLocaleString() + '원';
+  }
+
+  updateSlots(slots) {
+    const container = this.querySelector('#slots-container');
+    container.innerHTML = '';
     
-    if (cart.length === 0) {
-      list.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 2rem;">선택된 게임이 없습니다.</div>';
-    } else {
-      cart.forEach(item => {
-        const div = document.createElement('div');
-        div.style = 'display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid #f1f5f9;';
-        
+    let totalCount = 0;
+    slots.forEach((slot, index) => {
+      const prefix = String.fromCharCode(65 + index); // A, B, C, D, E
+      const div = document.createElement('div');
+      div.className = 'game-slot';
+      
+      let content = '';
+      if (slot) {
+        totalCount++;
         let ballsHtml = '';
-        item.numbers.forEach(n => {
-          ballsHtml += `<div class="lotto-ball ${getBallClass(n)}" style="width: 24px; height: 24px; font-size: 0.65rem;">${n}</div>`;
+        slot.numbers.forEach(n => {
+          ballsHtml += `<div class="lotto-ball ${getBallClass(n)}" style="margin-right: 4px;">${n}</div>`;
         });
+        content = `<div style="display: flex; align-items: center;">${ballsHtml}</div>`;
+      } else {
+        let emptyBalls = '';
+        for(let i=0; i<6; i++) emptyBalls += `<div class="lotto-ball ball-empty" style="margin-right: 4px;"></div>`;
+        content = `<div style="display: flex; align-items: center;">
+          <span class="status-text" style="margin-right: 15px;">미지정</span>
+          ${emptyBalls}
+        </div>`;
+      }
 
-        div.innerHTML = `
-          <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-            <div style="display: flex; gap: 0.25rem;">${ballsHtml}</div>
-            <span style="font-size: 0.65rem; color: var(--text-muted);">${item.isAuto ? '자동' : '수동'}</span>
-          </div>
-          <button class="remove-btn" data-id="${item.id}" style="background: none; border: none; color: var(--danger-color); cursor: pointer; padding: 0.25rem;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"></path></svg>
-          </button>
-        `;
-        list.appendChild(div);
-      });
-    }
-
-    this.querySelector('#cart-count').textContent = cart.length;
-    this.querySelector('#total-price').textContent = (cart.length * app.COST_PER_GAME).toLocaleString();
-    
-    // Setup remove buttons
-    this.querySelectorAll('.remove-btn').forEach(btn => {
-      btn.onclick = () => app.removeFromCart(btn.dataset.id);
+      div.innerHTML = `
+        <span class="prefix">${prefix}</span>
+        ${content}
+        <div class="slot-actions">
+          <button>수정</button>
+          <button class="del-slot" data-index="${index}">삭제</button>
+          <button>번호복사</button>
+        </div>
+      `;
+      container.appendChild(div);
     });
+
+    this.querySelector('.del-slot')?.forEach(btn => {
+      btn.onclick = () => app.removeSlot(btn.dataset.index);
+    });
+    
+    this.querySelector('#total-price').textContent = (totalCount * app.COST_PER_GAME).toLocaleString() + '원';
   }
 
   render() {
     this.innerHTML = `
-      <div class="card" style="height: fit-content; position: sticky; top: 100px;">
-        <h2 style="margin-bottom: 1rem; border-bottom: 2px solid #f1f5f9; padding-bottom: 0.5rem;">구매 목록</h2>
+      <div class="confirmation-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 2px solid var(--lotto-blue-grey);">
+          <h2 style="font-size: 1rem;">선택 번호 확인</h2>
+          <button id="clear-slots" style="background: #757575; color: white; border: none; padding: 2px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">초기화</button>
+        </div>
         
-        <div id="cart-items" style="max-height: 400px; overflow-y: auto; margin-bottom: 1.5rem;">
-          <div style="text-align: center; color: var(--text-muted); padding: 2rem;">선택된 게임이 없습니다.</div>
+        <div id="slots-container" style="flex: 1;">
+          <!-- A-E slots rendered here -->
         </div>
 
-        <div style="border-top: 2px solid #f1f5f9; padding-top: 1rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
-            <span style="color: var(--text-muted);">수량</span>
-            <span style="font-weight: bold;"><span id="cart-count">0</span> / ${app.MAX_CART_SIZE}</span>
+        <div style="padding: 15px; background: var(--lotto-blue-grey-light);">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 10px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 5px;">
+                <span style="font-size: 0.75rem; color: var(--text-muted);">보유예치금</span>
+                <button style="font-size: 0.65rem; border: 1px solid #ddd; padding: 1px 4px; background: white;">충전</button>
+              </div>
+              <div id="balance-text" style="font-size: 1.5rem; font-weight: bold;">${app.points.toLocaleString()}원</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 5px;">결제 금액</div>
+              <div id="total-price" style="font-size: 1.5rem; font-weight: bold; color: var(--lotto-orange);">0원</div>
+            </div>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 1.5rem; font-size: 1.25rem; font-weight: bold;">
-            <span>결제 금액</span>
-            <span style="color: var(--primary-color);"><span id="total-price">0</span> P</span>
-          </div>
-          <button id="purchase-btn" class="btn btn-primary" style="width: 100%; padding: 1rem;">구매하기</button>
         </div>
+        <button id="purchase-btn" class="btn btn-purchase">구매하기</button>
       </div>
     `;
 
+    this.querySelector('#clear-slots').onclick = () => app.clearSlots();
     this.querySelector('#purchase-btn').onclick = () => app.purchase();
+    this.updateSlots(app.slots);
   }
 }
 customElements.define('lotto-cart', LottoCart);
