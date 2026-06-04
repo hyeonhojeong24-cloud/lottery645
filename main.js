@@ -1,17 +1,19 @@
 /**
- * AppManager - Central state management with Auth & Persistence
+ * AppManager - Central state management with Auth, Bots, & History
  */
 class AppManager extends EventTarget {
   constructor() {
     super();
     this.users = JSON.parse(localStorage.getItem('lotto_users')) || {};
     this.currentUser = JSON.parse(localStorage.getItem('lotto_session')) || null;
+    this.history = JSON.parse(localStorage.getItem('lotto_history')) || [];
+    this.bots = JSON.parse(localStorage.getItem('lotto_bots')) || this.initBots();
     
-    // Lotto Global State (Rollover prize, total sales, etc.)
     this.globalState = JSON.parse(localStorage.getItem('lotto_global')) || {
       rolloverPrize: 0,
       currentRound: 1,
-      totalSales: 0
+      totalSales: 0,
+      lastDrawTime: null
     };
 
     this.slots = Array(5).fill(null);
@@ -25,16 +27,46 @@ class AppManager extends EventTarget {
     } else {
       this.points = 0;
     }
+
+    this.initAutomatedDraw();
+  }
+
+  initBots() {
+    const names = ['AI_Lotto', 'LuckyStrike', 'NumberMaster', 'FortuneCookie', 'JackpotFinder', 'RichGuy', 'LottoBot', 'ZeroToHero'];
+    const bots = {};
+    for(let i=1; i<=50; i++) {
+      const id = `${names[i % names.length]}_${i}`;
+      bots[id] = { id, points: 100000, totalWins: 0 };
+    }
+    localStorage.setItem('lotto_bots', JSON.stringify(bots));
+    return bots;
   }
 
   saveData() {
     localStorage.setItem('lotto_users', JSON.stringify(this.users));
     localStorage.setItem('lotto_global', JSON.stringify(this.globalState));
+    localStorage.setItem('lotto_history', JSON.stringify(this.history));
+    localStorage.setItem('lotto_bots', JSON.stringify(this.bots));
     if (this.currentUser) {
       localStorage.setItem('lotto_session', JSON.stringify(this.currentUser));
     } else {
       localStorage.removeItem('lotto_session');
     }
+  }
+
+  // ... (auth methods same)
+
+  initAutomatedDraw() {
+    setInterval(() => {
+      const now = new Date();
+      // Simulate: Every minute checks if it's "9:00 PM" in game-time or if enough time has passed
+      // For this simulator, we'll check if lastDraw was more than 1 hour ago for faster testing,
+      // but the UI will say "Next draw at 9 PM"
+      const lastDraw = this.globalState.lastDrawTime ? new Date(this.globalState.lastDrawTime) : new Date(0);
+      if (now - lastDraw > 1000 * 60 * 60) { // Auto draw every 1 hour for simulator engagement
+        this.draw();
+      }
+    }, 60000);
   }
 
   signup(id, pw, email = '') {
@@ -47,8 +79,10 @@ class AppManager extends EventTarget {
       id,
       pw,
       email,
-      points: 100000, // Signup bonus
-      lastLogin: today
+      points: 100000,
+      lastLogin: today,
+      purchased: [],
+      wins: []
     };
     this.saveData();
     alert('회원가입이 완료되었습니다! 100,000 포인트가 지급되었습니다.');
@@ -61,12 +95,10 @@ class AppManager extends EventTarget {
       alert('아이디 또는 비밀번호가 틀립니다.');
       return false;
     }
-
     this.currentUser = id;
     this.checkLoginBonus(user);
     this.points = user.points;
     this.saveData();
-    
     this.dispatchEvent(new CustomEvent('auth-changed', { detail: id }));
     this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
     return true;
@@ -81,20 +113,14 @@ class AppManager extends EventTarget {
   }
 
   checkLoginBonus(user) {
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const lastLogin = new Date(user.lastLogin);
-    const lastLoginStr = user.lastLogin;
-
-    if (todayStr !== lastLoginStr) {
-      const diffTime = Math.abs(today - lastLogin);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (diffDays >= 7) {
-        alert('7일 이상 미접속으로 일일 보너스가 지급되지 않았습니다.');
-      } else {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (todayStr !== user.lastLogin) {
+      const diffDays = Math.ceil(Math.abs(new Date() - new Date(user.lastLogin)) / (1000 * 60 * 60 * 24));
+      if (diffDays < 7) {
         user.points += 200000;
-        alert('환영합니다! 일일 접속 보너스 200,000 포인트가 지급되었습니다.');
+        alert('일일 접속 보너스 200,000 포인트 지급!');
+      } else {
+        alert('7일 이상 미접속으로 보너스 미지급');
       }
       user.lastLogin = todayStr;
     }
@@ -108,41 +134,12 @@ class AppManager extends EventTarget {
     this.dispatchEvent(new CustomEvent('points-updated', { detail: this.points }));
   }
 
-  confirmSelection(numbers, isAuto = false) {
-    if (!this.currentUser) {
-      alert('로그인이 필요한 서비스입니다.');
-      return false;
-    }
-    const nextSlotIndex = this.slots.findIndex(slot => slot === null);
-    if (nextSlotIndex === -1) {
-      alert('모든 슬롯이 가득 찼습니다.');
-      return false;
-    }
-    
-    this.slots[nextSlotIndex] = {
-      numbers: [...numbers].sort((a, b) => a - b),
-      isAuto: isAuto && numbers.length === 6
-    };
-    
-    this.dispatchEvent(new CustomEvent('slots-updated', { detail: this.slots }));
-    return true;
-  }
-
   purchase() {
     const count = this.slots.filter(s => s !== null).length;
     const totalCost = count * this.COST_PER_GAME;
-    
-    if (count === 0) {
-      alert('선택된 번호가 없습니다.');
-      return false;
-    }
+    if (count === 0) return alert('선택된 번호가 없습니다.');
+    if (this.points < totalCost) return alert('보유포인트가 부족합니다.');
 
-    if (this.points < totalCost) {
-      alert('보유포인트가 부족합니다.');
-      return false;
-    }
-
-    // Track purchase in user data
     const user = this.users[this.currentUser];
     if (!user.purchased) user.purchased = [];
     
@@ -157,99 +154,125 @@ class AppManager extends EventTarget {
     });
 
     this.updatePoints(-totalCost);
-    this.globalState.totalSales += (totalCost + (Math.random() * 5000000)); // Simulate virtual sales
+    this.globalState.totalSales += totalCost;
     this.clearSlots();
     this.saveData();
-    alert(`${count}게임 구매가 완료되었습니다!`);
+    alert(`${count}게임 구매 완료!`);
     return true;
   }
 
   draw() {
-    // 1. Generate Winning Numbers
+    // 1. Winning Numbers
     const pool = Array.from({length: 45}, (_, i) => i + 1);
     const winning = [];
-    for(let i=0; i<6; i++) {
-      winning.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-    }
+    for(let i=0; i<6; i++) winning.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
     winning.sort((a, b) => a - b);
     const bonus = pool[Math.floor(Math.random() * pool.length)];
 
-    // 2. Calculate Prize Pool (50% of total sales + rollover)
-    let prizePool = (this.globalState.totalSales * 0.5) + this.globalState.rolloverPrize;
-    const fixed5th = 5000;
-    const fixed4th = 50000;
-
-    const results = {
-      round: this.globalState.currentRound,
-      winning,
-      bonus,
-      winners: {1:[], 2:[], 3:[], 4:[], 5:[]},
-      myResult: []
-    };
-
-    // 3. Match user tickets
-    if (this.currentUser) {
-      const user = this.users[this.currentUser];
-      if (user.purchased) {
-        user.purchased.filter(t => t.round === this.globalState.currentRound).forEach(ticket => {
-          const matchCount = ticket.numbers.filter(n => winning.includes(n)).length;
-          const bonusMatch = ticket.numbers.includes(bonus);
-          let rank = 0;
-
-          if (matchCount === 6) rank = 1;
-          else if (matchCount === 5 && bonusMatch) rank = 2;
-          else if (matchCount === 5) rank = 3;
-          else if (matchCount === 4) rank = 4;
-          else if (matchCount === 3) rank = 5;
-
-          if (rank > 0) results.winners[rank].push(this.currentUser);
-          results.myResult.push({ numbers: ticket.numbers, rank });
-        });
+    // 2. Bot Simulation
+    let botSales = 0;
+    Object.values(this.bots).forEach(bot => {
+      const buyCount = Math.floor(Math.random() * 5) + 1; // Bots buy 1-5 games
+      bot.currentTickets = [];
+      for(let i=0; i<buyCount; i++) {
+        const nums = [];
+        const botPool = Array.from({length: 45}, (_, i) => i + 1);
+        for(let j=0; j<6; j++) nums.push(botPool.splice(Math.floor(Math.random() * botPool.length), 1)[0]);
+        bot.currentTickets.push(nums.sort((a,b)=>a-b));
       }
-    }
-
-    // 4. Simulate other winners (rough estimation for realism)
-    const totalTickets = this.globalState.totalSales / 1000;
-    [1, 2, 3, 4, 5].forEach(rank => {
-      const prob = rank === 1 ? 1/8145060 : rank === 2 ? 1/1357510 : rank === 3 ? 1/35724 : rank === 4 ? 1/733 : 1/45;
-      const virtualWinners = Math.floor(totalTickets * prob);
-      for(let i=0; i<virtualWinners; i++) results.winners[rank].push('VirtualPlayer');
+      botSales += buyCount * 1000;
     });
 
-    // 5. Distribute Prizes
-    const winCounts = [1,2,3,4,5].map(r => results.winners[r].length);
-    const pool1 = prizePool * 0.75; // 1st gets 75% of remaining after fixed prizes
-    const pool2 = prizePool * 0.125;
-    const pool3 = prizePool * 0.125;
+    // 3. Prize Pool
+    const totalRoundSales = this.globalState.totalSales + botSales;
+    let prizePool = (totalRoundSales * 0.5) + this.globalState.rolloverPrize;
+    const winners = {1:[], 2:[], 3:[], 4:[], 5:[]};
 
-    let totalFixed = (winCounts[3] * fixed4th) + (winCounts[4] * fixed5th);
-    let remainingPool = Math.max(0, prizePool - totalFixed);
+    // 4. Checking All Players (User + Bots)
+    const allPlayers = [...Object.values(this.bots)];
+    if(this.currentUser) allPlayers.push({ id: this.currentUser, currentTickets: this.users[this.currentUser].purchased.filter(t => t.round === this.globalState.currentRound).map(t => t.numbers) });
+
+    allPlayers.forEach(player => {
+      if(!player.currentTickets) return;
+      player.currentTickets.forEach(nums => {
+        const match = nums.filter(n => winning.includes(n)).length;
+        const bonusMatch = nums.includes(bonus);
+        let rank = 0;
+        if (match === 6) rank = 1;
+        else if (match === 5 && bonusMatch) rank = 2;
+        else if (match === 5) rank = 3;
+        else if (match === 4) rank = 4;
+        else if (match === 3) rank = 5;
+        if(rank > 0) winners[rank].push({ id: player.id, numbers: nums });
+      });
+    });
+
+    // 5. Prize Distribution
+    const fixed4th = 50000;
+    const fixed5th = 5000;
+    const totalFixed = (winners[4].length * fixed4th) + (winners[5].length * fixed5th);
+    const remainingPool = Math.max(0, prizePool - totalFixed);
     
-    const prizes = {
-      1: winCounts[0] > 0 ? Math.floor((remainingPool * 0.75) / winCounts[0]) : 0,
-      2: winCounts[1] > 0 ? Math.floor((remainingPool * 0.125) / winCounts[1]) : 0,
-      3: winCounts[2] > 0 ? Math.floor((remainingPool * 0.125) / winCounts[2]) : 0,
+    const rankPrizes = {
+      1: winners[1].length > 0 ? Math.floor((remainingPool * 0.75) / winners[1].length) : 0,
+      2: winners[2].length > 0 ? Math.floor((remainingPool * 0.125) / winners[2].length) : 0,
+      3: winners[3].length > 0 ? Math.floor((remainingPool * 0.125) / winners[3].length) : 0,
       4: fixed4th,
       5: fixed5th
     };
 
-    // 6. Give prizes to current user
-    let myTotalWin = 0;
-    results.myResult.forEach(res => {
-      if (res.rank > 0) myTotalWin += prizes[res.rank];
-    });
-    if (myTotalWin > 0) this.updatePoints(myTotalWin);
+    // 6. Update Bot/User Prize Data
+    allPlayers.forEach(player => {
+      let winSum = 0;
+      if(!player.currentTickets) return;
+      player.currentTickets.forEach(nums => {
+        const match = nums.filter(n => winning.includes(n)).length;
+        const bonusMatch = nums.includes(bonus);
+        let r = 0;
+        if (match === 6) r = 1; else if (match === 5 && bonusMatch) r = 2; else if (match === 5) r = 3; else if (match === 4) r = 4; else if (match === 3) r = 5;
+        if(r > 0) winSum += rankPrizes[r];
+      });
 
-    // 7. Rollover Logic
-    this.globalState.rolloverPrize = (winCounts[0] === 0 ? remainingPool * 0.75 : 0) +
-                                    (winCounts[1] === 0 ? remainingPool * 0.125 : 0) +
-                                    (winCounts[2] === 0 ? remainingPool * 0.125 : 0);
-    
+      if(this.bots[player.id]) {
+        this.bots[player.id].totalWins += winSum;
+        this.bots[player.id].points += winSum;
+      } else if(player.id === this.currentUser) {
+        if(winSum > 0) {
+          this.users[this.currentUser].wins.push({ round: this.globalState.currentRound, amount: winSum });
+          this.updatePoints(winSum);
+        }
+      }
+    });
+
+    // 7. Store History
+    this.history.unshift({
+      round: this.globalState.currentRound,
+      winning,
+      bonus,
+      winners: { 1: winners[1].length, 2: winners[2].length, 3: winners[3].length, 4: winners[4].length, 5: winners[5].length },
+      prizes: rankPrizes,
+      totalSales: totalRoundSales
+    });
+
+    // 8. Reset Global
+    this.globalState.rolloverPrize = (winners[1].length === 0 ? remainingPool * 0.75 : 0) +
+                                    (winners[2].length === 0 ? remainingPool * 0.125 : 0) +
+                                    (winners[3].length === 0 ? remainingPool * 0.125 : 0);
     this.globalState.currentRound++;
     this.globalState.totalSales = 0;
+    this.globalState.lastDrawTime = new Date().toISOString();
     this.saveData();
 
-    this.dispatchEvent(new CustomEvent('draw-completed', { detail: { results, prizes, myTotalWin } }));
+    this.dispatchEvent(new CustomEvent('draw-completed', { detail: this.history[0] }));
+  }
+
+  getRankings() {
+    const all = [...Object.values(this.bots)];
+    if(this.currentUser) {
+      const userWin = this.users[this.currentUser].wins?.reduce((a,b)=>a+b.amount, 0) || 0;
+      all.push({ id: this.currentUser, totalWins: userWin, isUser: true });
+    }
+    return all.sort((a,b) => b.totalWins - a.totalWins);
   }
 }
 
@@ -262,6 +285,138 @@ function getBallClass(num) {
   if (num <= 40) return 'ball-31-40';
   return 'ball-41-45';
 }
+
+/**
+ * <lotto-dashboard> Component - Tab switching between Ranking, History, My Page
+ */
+class LottoDashboard extends HTMLElement {
+  constructor() {
+    super();
+    this.currentTab = 'ranking';
+  }
+
+  connectedCallback() {
+    this.render();
+    app.addEventListener('draw-completed', () => this.render());
+    app.addEventListener('auth-changed', () => this.render());
+  }
+
+  render() {
+    this.innerHTML = `
+      <div class="card" style="margin-top: 2rem;">
+        <div class="nav-tabs">
+          <div class="nav-tab ${this.currentTab === 'ranking' ? 'active' : ''}" data-tab="ranking">상금 랭킹</div>
+          <div class="nav-tab ${this.currentTab === 'history' ? 'active' : ''}" data-tab="history">지난 회차 이력</div>
+          <div class="nav-tab ${this.currentTab === 'mypage' ? 'active' : ''}" data-tab="mypage">내 정보/내역</div>
+        </div>
+        <div id="tab-content">
+          ${this.renderTabContent()}
+        </div>
+      </div>
+    `;
+
+    this.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.onclick = () => {
+        this.currentTab = tab.dataset.tab;
+        this.render();
+      };
+    });
+  }
+
+  renderTabContent() {
+    if (this.currentTab === 'ranking') return this.renderRanking();
+    if (this.currentTab === 'history') return this.renderHistory();
+    if (this.currentTab === 'mypage') return this.renderMyPage();
+  }
+
+  renderRanking() {
+    const rankings = app.getRankings();
+    const top20 = rankings.slice(0, 20);
+    const userRank = app.currentUser ? rankings.findIndex(r => r.id === app.currentUser) + 1 : 0;
+    
+    let rows = top20.map((r, i) => `
+      <tr class="${r.id === app.currentUser ? 'rank-highlight' : ''}">
+        <td>${i+1}</td>
+        <td>${r.id}</td>
+        <td>${r.totalWins.toLocaleString()}원</td>
+        <td>${i < 3 ? `<span class="badge badge-${['1st','2nd','3rd'][i]}">${i+1}위</span>` : ''}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div>
+        <table class="ranking-table">
+          <thead><tr><th>순위</th><th>아이디</th><th>누적 상금</th><th>비고</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${userRank > 0 ? `
+          <div style="margin-top: 20px; padding: 15px; background: var(--lotto-pink-light); border-radius: 8px; text-align: center; font-weight: bold; color: var(--lotto-magenta);">
+            당신의 현재 랭킹: ${userRank}위
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  renderHistory() {
+    if (app.history.length === 0) return '<div style="padding: 2rem; text-align: center; color: #999;">회차 이력이 없습니다.</div>';
+    
+    return app.history.map(h => `
+      <div class="history-item">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <span style="font-weight: bold; font-size: 1.1rem; color: var(--lotto-blue-grey);">제 ${h.round}회 당첨 결과</span>
+          <span style="font-size: 0.8rem; color: #999;">총 판매액: ${h.totalSales.toLocaleString()}원</span>
+        </div>
+        <div style="display: flex; gap: 5px; justify-content: center; margin: 15px 0;">
+          ${h.winning.map(n => `<div class="lotto-ball ${getBallClass(n)}" style="width: 24px; height: 24px; font-size: 0.7rem;">${n}</div>`).join('')}
+          <span style="font-weight: bold; color: #ccc;">+</span>
+          <div class="lotto-ball ${getBallClass(h.bonus)}" style="width: 24px; height: 24px; font-size: 0.7rem;">${h.bonus}</div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; font-size: 0.75rem; text-align: center;">
+          <div>1등: ${h.winners[1]}명</div>
+          <div>2등: ${h.winners[2]}명</div>
+          <div>3등: ${h.winners[3]}명</div>
+          <div>4등: ${h.winners[4]}명</div>
+          <div>5등: ${h.winners[5]}명</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  renderMyPage() {
+    if (!app.currentUser) return '<div style="padding: 2rem; text-align: center; color: #999;">로그인 후 확인 가능합니다.</div>';
+    
+    const user = app.users[app.currentUser];
+    const purchased = user.purchased || [];
+    const wins = user.wins || [];
+
+    return `
+      <div>
+        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+          <div style="flex: 1; background: #f1f5f9; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #666;">내 보유 포인트</div>
+            <div style="font-size: 1.2rem; font-weight: bold; color: var(--lotto-magenta);">${app.points.toLocaleString()} P</div>
+          </div>
+          <div style="flex: 1; background: #f1f5f9; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-size: 0.8rem; color: #666;">누적 당첨 상금</div>
+            <div style="font-size: 1.2rem; font-weight: bold; color: var(--lotto-blue-btn);">${wins.reduce((a,b)=>a+b.amount,0).toLocaleString()}원</div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 1rem; margin-bottom: 10px;">최근 구매 내역</h3>
+        <div style="max-height: 200px; overflow-y: auto; font-size: 0.85rem; border: 1px solid #eee; border-radius: 4px;">
+          ${purchased.slice().reverse().map(p => `
+            <div style="padding: 8px; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between;">
+              <span>제 ${p.round}회 (${p.isAuto ? '자동' : '수동'})</span>
+              <span style="font-family: monospace;">${p.numbers.join(', ')}</span>
+            </div>
+          `).join('') || '<div style="padding: 10px; color: #999;">구매 내역이 없습니다.</div>'}
+        </div>
+      </div>
+    `;
+  }
+}
+customElements.define('lotto-dashboard', LottoDashboard);
 
 /**
  * <lotto-result> Component - Draw button and results display
