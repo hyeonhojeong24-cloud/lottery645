@@ -1,14 +1,37 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello World</title>
-  <link href='/style.css' rel='stylesheet'>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lotto 6/45 - 동행복권 스타일 시뮬레이터</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <h1>Hello, world!</h1>
-  <button onclick="console.log('hello');">Press me</button>
-  <script defer type="text/javascript" src="/main.js"></script>
+  <lotto-header></lotto-header>
+  
+  <main class="app-container">
+    <section>
+      <lotto-selector></lotto-selector>
+      
+      <article class="card" style="margin-top: 2rem;">
+        <h3 style="margin-bottom: 1rem;">안내사항</h3>
+        <ul style="color: var(--text-muted); font-size: 0.875rem; padding-left: 1.25rem;">
+          <li>1게임당 구매 비용은 1,000 포인트입니다.</li>
+          <li>한 번에 최대 100게임까지 구매 목록에 담을 수 있습니다.</li>
+          <li>수동 선택은 번호 6개를 모두 선택해야 추가 가능합니다.</li>
+          <li>자동 선택 버튼을 누르면 무작위로 6개 번호가 선택됩니다.</li>
+        </ul>
+      </article>
+    </section>
+
+    <aside>
+      <lotto-cart></lotto-cart>
+    </aside>
+  </main>
+
+  <script src="main.js" type="module"></script>
 </body>
 </html>
