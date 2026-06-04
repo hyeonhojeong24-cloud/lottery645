@@ -96,6 +96,10 @@ For computationally intensive tasks, the AI can integrate WebAssembly modules.
 * **Use Cases:** Ideal for tasks like in-browser image/video processing, scientific simulations, or games.
 * **Integration:** The AI will load and instantiate the `.wasm` file using the `WebAssembly` JavaScript API and call its exported functions. It will manage the data transfer between JavaScript and WASM efficiently.
 
+## **Git Workflow**
+
+* **Automatic Pushes:** For this repository, the AI will automatically stage, commit, and push all code changes to the `origin` remote after completing each significant implementation or fix, ensuring the GitHub repository is always in sync with the latest work.
+
 ## **Automated Error Detection & Remediation**
 
 A critical function of the AI is to continuously monitor for and automatically resolve errors to maintain a runnable and correct application state.
